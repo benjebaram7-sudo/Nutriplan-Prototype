@@ -1,4 +1,4 @@
-# Ntuplan — Meals & Nutrition Planner
+# Nutriplan — Meals & Nutrition Planner
 
 A full-stack web application that calculates daily calorie/macro targets (BMR & TDEE) and uses Google Gemini to generate structured, customizable multi-day meal plans with ingredient breakdowns.
 
