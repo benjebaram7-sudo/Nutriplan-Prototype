@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NutriPlan - Premium Meal Planning</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'Cairo', 'sans-serif'] },
+          colors: {
+            brand: {
+              50:'#ecfdf5', 100:'#d1fae5', 200:'#a7f3d0',
+              400:'#34d399', 500:'#10b981', 600:'#059669',
+              700:'#047857', 800:'#065f46', 900:'#064e3b'
+            }
+          },
+          boxShadow: {
+            card:  '0 4px 24px -2px rgba(0,0,0,0.07), 0 2px 8px -2px rgba(0,0,0,0.05)',
+            hero:  '0 8px 40px -4px rgba(5,150,105,0.4)',
+            toast: '0 8px 32px -4px rgba(0,0,0,0.18)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* ---- Base & RTL ---- */
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: 'Inter', 'Cairo', sans-serif; background: #f1f5f9; transition: background 0.3s; }
+    
+    html[dir="rtl"] { text-align: right; }
+    html[dir="rtl"] .ml-2 { margin-left: 0; margin-right: 0.5rem; }
+    html[dir="rtl"] .mr-2 { margin-right: 0; margin-left: 0.5rem; }
+    html[dir="rtl"] .text-right { text-align: left; }
+    html[dir="rtl"] .flex-row-reverse-rtl { flex-direction: row-reverse; }
+
+    /* ---- View transitions ---- */
+    .view { display: none; }
+    .view.active {
+      display: block;
+      animation: fadeSlideIn 0.35s cubic-bezier(.4,0,.2,1) both;
+    }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ---- Toast system ---- */
+    #toast-container {
+      position: fixed; top: 1.25rem; right: 1.25rem;
+      z-index: 9999; display: flex; flex-direction: column; gap: 0.625rem;
+      pointer-events: none;
+    }
+    html[dir="rtl"] #toast-container { right: auto; left: 1.25rem; }
+    
+    .toast {
+      pointer-events: all; min-width: 280px; max-width: 360px;
+      padding: 0.875rem 1.25rem; border-radius: 14px;
+      box-shadow: 0 8px 32px -4px rgba(0,0,0,0.18);
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      animation: toastIn 0.35s cubic-bezier(.4,0,.2,1) both;
+      cursor: pointer; background: #fff;
+    }
+    .toast.removing { animation: toastOut 0.3s ease forwards; }
+    
+    .toast-success { border-left: 4px solid #10b981; }
+    html[dir="rtl"] .toast-success { border-left: none; border-right: 4px solid #10b981; }
+    
+    .toast-error { border-left: 4px solid #ef4444; }
+    html[dir="rtl"] .toast-error { border-left: none; border-right: 4px solid #ef4444; }
+    
+    .toast-info { border-left: 4px solid #3b82f6; }
+    html[dir="rtl"] .toast-info { border-left: none; border-right: 4px solid #3b82f6; }
+
+    .toast-icon { font-size: 1.25rem; line-height:1; flex-shrink:0; margin-top:1px; }
+    .toast-body { flex:1; }
+    .toast-title { font-weight: 600; font-size: 0.875rem; margin-bottom:2px; color:#0f172a; }
+    .toast-msg  { font-size: 0.8rem; color: #64748b; }
+    @keyframes toastIn  { from{opacity:0;transform:translateX(40px)} to{opacity:1;transform:translateX(0)} }
+    @keyframes toastOut { from{opacity:1;transform:translateX(0)} to{opacity:0;transform:translateX(40px)} }
+
+    /* ---- Progress bar ---- */
+    .progress-step { transition: all 0.3s; }
+
+    /* ---- Spinner ---- */
+    .spinner {
+      display: inline-block; width: 18px; height: 18px;
+      border: 2.5px solid rgba(255,255,255,0.4); border-top-color: white;
+      border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- Tabs ---- */
+    .day-tab {
+      padding: 0.5rem 1.2rem; border-radius: 9999px;
+      font-weight: 600; font-size: 0.875rem; cursor: pointer;
+      transition: all 0.2s; border: none; background: #e2e8f0; color: #475569;
+    }
+    .day-tab.active { background: #10b981; color: #fff; box-shadow: 0 4px 14px rgba(16,185,129,0.35); }
+    .day-tab:hover:not(.active) { background: #cbd5e1; }
+
+    /* ---- Meal cards ---- */
+    .meal-type-badge {
+      display: inline-block; padding: 0.2rem 0.65rem; border-radius: 9999px;
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .badge-breakfast { background:#fef9c3; color:#854d0e; }
+    .badge-lunch     { background:#dcfce7; color:#166534; }
+    .badge-dinner    { background:#e0e7ff; color:#3730a3; }
+    .badge-snack     { background:#ffe4e6; color:#9f1239; }
+
+    /* ---- Radio cards ---- */
+    .radio-card { cursor: pointer; transition: all 0.2s; }
+    .radio-card:has(input:checked) { border-color: #10b981 !important; background: #ecfdf5; }
+
+    /* ---- Nav link active ---- */
+    .nav-link.active-nav { color: #10b981 !important; }
+
+    /* ---- Mobile bottom tab ---- */
+    @media (max-width: 639px) {
+      #desktop-nav { display: none !important; }
+      #mobile-tab-bar { display: flex !important; }
+      body { padding-bottom: 80px; }
+    }
+    @media (min-width: 640px) {
+      #desktop-nav { display: flex !important; }
+      #mobile-tab-bar { display: none !important; }
+    }
+    .mobile-tab { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:0.5rem 0; color:#94a3b8; cursor:pointer; font-size:0.7rem; font-weight:600; transition:color 0.2s; border:none; background:none; }
+    .mobile-tab svg { width:22px; height:22px; }
+    .mobile-tab.active-nav { color:#10b981; }
+
+    /* ---- Print styles ---- */
+    @media print {
+      nav, #mobile-tab-bar, #btn-generate-mp, #btn-print-grocery,
+      .view:not(.active), .no-print { display: none !important; }
+      body { background: white; padding: 0; }
+      .grocery-print-title { font-size: 1.5rem; font-weight: 800; color: #064e3b; margin-bottom: 1rem; display: block !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- ================= TOAST CONTAINER ================= -->
+  <div id="toast-container"></div>
+
+  <!-- ================= TOP NAV ================= -->
+  <nav class="bg-white shadow-sm sticky top-0 z-50 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="text-2xl">🥗</span>
+      <span class="text-xl font-bold text-brand-600 tracking-tight">NutriPlan</span>
+    </div>
+    
+    <div class="flex items-center gap-4 flex-row-reverse-rtl">
+      <!-- Language Selector -->
+      <select id="lang-select" onchange="changeLanguage(this.value)" class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 focus:outline-none focus:border-brand-500 font-500 text-slate-700 cursor-pointer">
+        <option value="en">🇺🇸 English</option>
+        <option value="fr">🇫🇷 Français</option>
+        <option value="ar">🇹🇳 العربية</option>
+      </select>
+
+      <!-- Desktop nav -->
+      <div id="desktop-nav" class="hidden items-center gap-1">
+        <button onclick="showView('dashboard')" class="nav-link px-4 py-2 rounded-full text-sm font-500 text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-all" id="nav-dashboard" data-i18n="nav_dashboard">Dashboard</button>
+        <button onclick="showView('mealplan')" class="nav-link px-4 py-2 rounded-full text-sm font-500 text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-all" id="nav-mealplan" data-i18n="nav_mealplan">Meal Plan</button>
+        <button onclick="showView('grocery')"  class="nav-link px-4 py-2 rounded-full text-sm font-500 text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-all" id="nav-grocery" data-i18n="nav_grocery">Grocery List</button>
+        <button onclick="logout()" class="ml-2 px-4 py-2 rounded-full text-sm font-600 text-slate-500 border border-slate-200 hover:bg-slate-50 transition-all" data-i18n="nav_logout">Sign Out</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ================= MOBILE BOTTOM TAB BAR ================= -->
+  <div id="mobile-tab-bar" class="hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] z-50 flex-row-reverse-rtl">
+    <button onclick="showView('dashboard')" class="mobile-tab active-nav" id="mob-dashboard">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      <span data-i18n="nav_dashboard">Dashboard</span>
+    </button>
+    <button onclick="showView('mealplan')" class="mobile-tab" id="mob-mealplan">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <span data-i18n="nav_mealplan">Meal Plan</span>
+    </button>
+    <button onclick="showView('grocery')" class="mobile-tab" id="mob-grocery">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 5h14M9 21a1 1 0 100-2 1 1 0 000 2zm10 0a1 1 0 100-2 1 1 0 000 2z"/></svg>
+      <span data-i18n="nav_grocery">Grocery</span>
+    </button>
+    <button onclick="logout()" class="mobile-tab">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      <span data-i18n="nav_logout">Sign Out</span>
+    </button>
+  </div>
+
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main class="max-w-2xl mx-auto px-4 py-8">
+
+    <!-- ===== LOGIN ===== -->
+    <div id="view-login" class="view active">
+      <div class="text-center mb-8">
+        <span class="text-5xl">🥦</span>
+        <h1 class="text-3xl font-800 text-slate-900 mt-3" data-i18n="login_title">Welcome to NutriPlan</h1>
+        <p class="text-slate-500 mt-1" data-i18n="login_subtitle">Your AI-powered personal nutrition coach</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow-card p-8 border border-slate-100">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="login_email">Email address</label>
+            <input type="email" id="auth-email" placeholder="you@example.com"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="login_password">Password</label>
+            <input type="password" id="auth-password" placeholder="••••••••"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent transition-all">
+          </div>
+        </div>
+        <button onclick="handleAuth('login')" id="btn-login"
+          class="mt-6 w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-700 rounded-xl transition-all shadow-sm hover:shadow-md" data-i18n="login_btn">
+          Log In
+        </button>
+        <button onclick="handleAuth('register')" id="btn-register"
+          class="mt-3 w-full py-3.5 bg-transparent border border-slate-200 text-slate-600 hover:bg-slate-50 font-600 rounded-xl transition-all" data-i18n="register_btn">
+          Create Account
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== ONBOARDING 1 ===== -->
+    <div id="view-onboard-1" class="view">
+      <div class="flex items-center gap-3 mb-6 flex-row-reverse-rtl">
+        <div class="flex items-center gap-2 flex-1 flex-row-reverse-rtl">
+          <div class="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm font-700 shadow-sm">1</div>
+          <div class="flex-1 h-1.5 rounded-full bg-brand-500"></div>
+          <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-sm font-700">2</div>
+        </div>
+        <span class="text-sm font-500 text-slate-500 whitespace-nowrap" data-i18n="ob1_step">Step 1 of 2</span>
+      </div>
+      <div class="bg-white rounded-2xl shadow-card p-8 border border-slate-100">
+        <div class="mb-6">
+          <h2 class="text-2xl font-800 text-slate-900" data-i18n="ob1_title">Personal Profile</h2>
+          <p class="text-slate-500 text-sm mt-1" data-i18n="ob1_subtitle">Let's tailor the experience to your body.</p>
+        </div>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="ob1_name">Full Name</label>
+            <input type="text" id="ob-name" placeholder="e.g. Jane Doe"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="ob1_dob">Date of Birth</label>
+            <input type="date" id="ob-dob"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="ob1_gender">Gender</label>
+            <select id="ob-gender"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all bg-white">
+              <option value="" data-i18n="ob1_gender_sel">Select gender...</option>
+              <option value="Male" data-i18n="ob1_male">Male</option>
+              <option value="Female" data-i18n="ob1_female">Female</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="ob1_weight">Weight (kg)</label>
+              <input type="number" id="ob-weight" placeholder="e.g. 70"
+                class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all">
+            </div>
+            <div>
+              <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="ob1_height">Height (cm)</label>
+              <input type="number" id="ob-height" placeholder="e.g. 175"
+                class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all">
+            </div>
+          </div>
+        </div>
+        <button onclick="nextOnboarding()"
+          class="mt-6 w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-700 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2">
+          <span data-i18n="ob_continue">Continue</span> <span dir="ltr">→</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== ONBOARDING 2 ===== -->
+    <div id="view-onboard-2" class="view">
+      <div class="flex items-center gap-3 mb-6 flex-row-reverse-rtl">
+        <div class="flex items-center gap-2 flex-1 flex-row-reverse-rtl">
+          <div class="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm font-700 shadow-sm">1</div>
+          <div class="flex-1 h-1.5 rounded-full bg-brand-500"></div>
+          <div class="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm font-700 shadow-sm">2</div>
+        </div>
+        <span class="text-sm font-500 text-slate-500 whitespace-nowrap" data-i18n="ob2_step">Step 2 of 2</span>
+      </div>
+      <div class="bg-white rounded-2xl shadow-card p-8 border border-slate-100">
+        <div class="mb-6">
+          <h2 class="text-2xl font-800 text-slate-900" data-i18n="ob2_title">Lifestyle & Goals</h2>
+          <p class="text-slate-500 text-sm mt-1" data-i18n="ob2_subtitle">How active are you and what do you want to achieve?</p>
+        </div>
+        <div class="space-y-5">
+          <div>
+            <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="ob2_activity">Activity Level</label>
+            <select id="ob-activity"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all bg-white">
+              <option value="Sedentary" data-i18n="act_1">Sedentary</option>
+              <option value="Lightly active" data-i18n="act_2">Lightly active</option>
+              <option value="Moderately active" data-i18n="act_3">Moderately active</option>
+              <option value="Very active" data-i18n="act_4">Very active</option>
+              <option value="Extremely active" data-i18n="act_5">Extremely active</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-slate-700 mb-2" data-i18n="ob2_goal">Primary Goal</label>
+            <div class="space-y-3">
+              <label class="radio-card flex items-start gap-3 p-4 border-2 border-slate-200 rounded-xl hover:border-brand-400 hover:bg-brand-50 transition-all cursor-pointer">
+                <input type="radio" name="goal" value="lose_weight" checked class="mt-0.5 accent-brand-500">
+                <div>
+                  <div class="font-700 text-sm text-slate-800">🔥 <span data-i18n="goal_lose">Lose Weight</span></div>
+                  <div class="text-xs text-slate-500 mt-0.5" data-i18n="goal_lose_desc">Caloric deficit to shed fat sustainably.</div>
+                </div>
+              </label>
+              <label class="radio-card flex items-start gap-3 p-4 border-2 border-slate-200 rounded-xl hover:border-brand-400 hover:bg-brand-50 transition-all cursor-pointer">
+                <input type="radio" name="goal" value="maintain" class="mt-0.5 accent-brand-500">
+                <div>
+                  <div class="font-700 text-sm text-slate-800">⚖️ <span data-i18n="goal_maintain">Maintain Weight</span></div>
+                  <div class="text-xs text-slate-500 mt-0.5" data-i18n="goal_main_desc">Eat at maintenance to keep your current physique.</div>
+                </div>
+              </label>
+              <label class="radio-card flex items-start gap-3 p-4 border-2 border-slate-200 rounded-xl hover:border-brand-400 hover:bg-brand-50 transition-all cursor-pointer">
+                <input type="radio" name="goal" value="gain_muscle" class="mt-0.5 accent-brand-500">
+                <div>
+                  <div class="font-700 text-sm text-slate-800">💪 <span data-i18n="goal_gain">Gain Muscle</span></div>
+                  <div class="text-xs text-slate-500 mt-0.5" data-i18n="goal_gain_desc">Slight surplus to build lean mass.</div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-3 mt-6 flex-row-reverse-rtl">
+          <button onclick="showView('onboard-1')"
+            class="flex-1 py-3.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-600 rounded-xl transition-all" data-i18n="btn_back">
+            Back
+          </button>
+          <button onclick="finishOnboarding()" id="btn-finish-ob"
+            class="flex-[2] py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-700 rounded-xl transition-all shadow-sm" data-i18n="btn_calc">
+            Calculate Profile
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DASHBOARD ===== -->
+    <div id="view-dashboard" class="view">
+      <div class="relative overflow-hidden rounded-2xl p-8 mb-5 text-white"
+           style="background: linear-gradient(135deg,#059669 0%,#047857 50%,#065f46 100%); box-shadow: 0 8px 40px -4px rgba(5,150,105,0.4);">
+        <div class="absolute inset-0 opacity-10" style="background:radial-gradient(circle at 80% 20%, #ffffff 0%, transparent 60%);"></div>
+        <p class="text-emerald-100 font-500 text-sm uppercase tracking-widest mb-1" data-i18n="dash_target">Daily Calorie Target</p>
+        <div class="text-6xl font-800 tracking-tight mb-1" id="dash-cals">—</div>
+        <p class="text-emerald-200 text-sm font-500">kcal / day</p>
+        <div class="absolute bottom-4 right-6 text-5xl opacity-20 select-none" dir="ltr">🎯</div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 mb-5 flex-row-reverse-rtl">
+        <div class="bg-white rounded-2xl shadow-card p-4 text-center border border-slate-100">
+          <div class="text-xs font-700 text-slate-400 uppercase tracking-wider mb-1">BMR</div>
+          <div class="text-xl font-800 text-slate-800" id="dash-bmr">—</div>
+          <div class="text-xs text-slate-400 mt-0.5">kcal</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-card p-4 text-center border border-slate-100">
+          <div class="text-xs font-700 text-slate-400 uppercase tracking-wider mb-1">TDEE</div>
+          <div class="text-xl font-800 text-slate-800" id="dash-tdee">—</div>
+          <div class="text-xs text-slate-400 mt-0.5">kcal</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-card p-4 text-center border border-slate-100">
+          <div class="text-xs font-700 text-slate-400 uppercase tracking-wider mb-1" data-i18n="dash_goal_label">Goal</div>
+          <div class="text-lg font-800 text-brand-600" id="dash-goal">—</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-card p-8 border border-slate-100 text-center">
+        <span class="text-4xl">🍽️</span>
+        <h2 class="text-xl font-800 text-slate-900 mt-3 mb-1" data-i18n="dash_ready">Ready to eat?</h2>
+        <p class="text-slate-500 text-sm mb-5" data-i18n="dash_ready_desc">Generate a customized meal plan based on your exact caloric needs.</p>
+        <button onclick="showView('mealplan')"
+          class="px-8 py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-700 rounded-xl transition-all shadow-sm hover:shadow-md" data-i18n="dash_cta">
+          Go to Meal Generator
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== MEAL PLAN GENERATOR ===== -->
+    <div id="view-mealplan" class="view">
+      <div class="bg-white rounded-2xl shadow-card p-8 border border-slate-100 mb-5">
+        <div class="mb-5">
+          <h2 class="text-2xl font-800 text-slate-900" data-i18n="mp_title">Meal Plan Generator</h2>
+          <p class="text-slate-500 text-sm mt-1" data-i18n="mp_subtitle">Let craft the perfect menu for your goals.</p>
+        </div>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="mp_pref">Dietary Preferences / Cuisine</label>
+            <input type="text" id="mp-type"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="mp_alg">Allergies / Dislikes</label>
+            <input type="text" id="mp-allergies"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-slate-700 mb-1.5" data-i18n="mp_dur">Plan Duration</label>
+            <select id="mp-duration"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all bg-white">
+              <option value="1" data-i18n="mp_1day">1 Day</option>
+              <option value="3" data-i18n="mp_3day">3 Days</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="generateMealPlan()" id="btn-generate-mp"
+          class="mt-6 w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-700 rounded-xl transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2">
+          ✨ <span data-i18n="mp_btn">Generate Meal Plan</span>
+        </button>
+      </div>
+
+      <div id="meal-results" class="hidden">
+        <div id="day-tabs" class="flex flex-wrap gap-2 mb-4"></div>
+        <div id="day-panels"></div>
+      </div>
+    </div>
+
+    <!-- ===== GROCERY LIST ===== -->
+    <div id="view-grocery" class="view">
+      <div class="bg-white rounded-2xl shadow-card p-8 border border-slate-100">
+        <div class="flex items-start justify-between mb-6 flex-row-reverse-rtl">
+          <div>
+            <h2 class="text-2xl font-800 text-slate-900" data-i18n="groc_title">Grocery List</h2>
+            <p class="text-slate-500 text-sm mt-1" data-i18n="groc_subtitle">Aggregated from all generated days.</p>
+          </div>
+          <button onclick="window.print()" id="btn-print-grocery"
+            class="no-print flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-600 rounded-xl transition-all">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            </svg>
+            <span data-i18n="groc_print">Print PDF</span>
+          </button>
+        </div>
+        <div id="grocery-container">
+          <div class="text-center py-12 text-slate-400">
+            <span class="text-4xl block mb-3">🛒</span>
+            <p class="font-500" data-i18n="groc_empty">Generate a meal plan first to see your grocery list.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // =============================================
+    // TRANSLATION DICTIONARY
+    // =============================================
+    const translations = {
+      en: {
+        nav_dashboard: "Dashboard", nav_mealplan: "Meal Plan", nav_grocery: "Grocery List", nav_logout: "Sign Out",
+        login_title: "Welcome to NutriPlan", login_subtitle: "Your personal nutrition coach", login_email: "Email address", login_password: "Password", login_btn: "Log In", register_btn: "Create Account",
+        ob1_step: "Step 1 of 2", ob1_title: "Personal Profile", ob1_subtitle: "Let's tailor the experience to your body.", ob1_name: "Full Name", ob1_dob: "Date of Birth", ob1_gender: "Gender", ob1_gender_sel: "Select gender...", ob1_male: "Male", ob1_female: "Female", ob1_weight: "Weight (kg)", ob1_height: "Height (cm)", ob_continue: "Continue",
+        ob2_step: "Step 2 of 2", ob2_title: "Lifestyle & Goals", ob2_subtitle: "How active are you and what do you want to achieve?", ob2_activity: "Activity Level", act_1: "Sedentary", act_2: "Lightly Active", act_3: "Moderately Active", act_4: "Very Active", act_5: "Extremely Active", ob2_goal: "Primary Goal", goal_lose: "Lose Weight", goal_lose_desc: "Caloric deficit to shed fat sustainably.", goal_maintain: "Maintain Weight", goal_main_desc: "Eat at maintenance to keep your current physique.", goal_gain: "Gain Muscle", goal_gain_desc: "Slight surplus to build lean mass.", btn_back: "Back", btn_calc: "Calculate Profile",
+        dash_target: "Daily Calorie Target", dash_goal_label: "Goal", dash_ready: "Ready to eat?", dash_ready_desc: "Generate a customized meal plan based on your exact caloric needs.", dash_cta: "Go to Meal Generator",
+        mp_title: "Meal Plan Generator", mp_subtitle: "Let craft the perfect menu for your goals.", mp_pref: "Dietary Preferences", mp_alg: "Allergies", mp_dur: "Plan Duration", mp_1day: "1 Day", mp_3day: "3 Days", mp_btn: "Generate Meal Plan",
+        groc_title: "Grocery List", groc_subtitle: "Aggregated from all generated days.", groc_print: "Print PDF", groc_empty: "Generate a meal plan first to see your grocery list.",
+        msg_wait: "Please wait...", msg_calc: "Calculating...", msg_ai: "We are crafting your menu...", msg_regen: "Regenerate Meal Plan"
+      },
+      fr: {
+        nav_dashboard: "Tableau de Bord", nav_mealplan: "Plan Repas", nav_grocery: "Liste de Courses", nav_logout: "Déconnexion",
+        login_title: "Bienvenue sur NutriPlan", login_subtitle: "Votre coach nutritionnel IA", login_email: "Adresse e-mail", login_password: "Mot de passe", login_btn: "Connexion", register_btn: "Créer un compte",
+        ob1_step: "Étape 1 sur 2", ob1_title: "Profil Personnel", ob1_subtitle: "Adaptons l'expérience à votre corps.", ob1_name: "Nom Complet", ob1_dob: "Date de Naissance", ob1_gender: "Genre", ob1_gender_sel: "Sélectionnez...", ob1_male: "Homme", ob1_female: "Femme", ob1_weight: "Poids (kg)", ob1_height: "Taille (cm)", ob_continue: "Continuer",
+        ob2_step: "Étape 2 sur 2", ob2_title: "Mode de vie & Objectifs", ob2_subtitle: "Quel est votre niveau d'activité et votre objectif ?", ob2_activity: "Niveau d'activité", act_1: "Sédentaire", act_2: "Légèrement actif", act_3: "Modérément actif", act_4: "Très actif", act_5: "Extrêmement actif", ob2_goal: "Objectif Principal", goal_lose: "Perdre du poids", goal_lose_desc: "Déficit calorique pour perdre durablement.", goal_maintain: "Maintenir le poids", goal_main_desc: "Manger à l'équilibre pour conserver votre physique.", goal_gain: "Prendre du muscle", goal_gain_desc: "Léger surplus pour la masse maigre.", btn_back: "Retour", btn_calc: "Calculer le Profil",
+        dash_target: "Cible Calorique Quotidienne", dash_goal_label: "Objectif", dash_ready: "Prêt à manger ?", dash_ready_desc: "Générez un plan repas IA basé sur vos besoins.", dash_cta: "Aller au Générateur",
+        mp_title: "Générateur de Plan", mp_subtitle: "Laissez l'IA créer le menu parfait.", mp_pref: "Préférences alimentaires", mp_alg: "Allergies", mp_dur: "Durée du plan", mp_1day: "1 Jour", mp_3day: "3 Jours", mp_btn: "Générer le Plan IA",
+        groc_title: "Liste de Courses", groc_subtitle: "Regroupée pour tous les jours générés.", groc_print: "Imprimer PDF", groc_empty: "Générez d'abord un plan repas pour voir la liste.",
+        msg_wait: "Veuillez patienter...", msg_calc: "Calcul en cours...", msg_ai: "L'IA prépare votre menu...", msg_regen: "Régénérer le Plan"
+      },
+      ar: {
+        nav_dashboard: "لوحة القيادة", nav_mealplan: "خطة الوجبات", nav_grocery: "قائمة البقالة", nav_logout: "تسجيل خروج",
+        login_title: "مرحباً بك في NutriPlan", login_subtitle: "مدرب التغذية الشخصي الذكي الخاص بك", login_email: "البريد الإلكتروني", login_password: "كلمة المرور", login_btn: "تسجيل الدخول", register_btn: "إنشاء حساب",
+        ob1_step: "الخطوة 1 من 2", ob1_title: "الملف الشخصي", ob1_subtitle: "دعنا نخصص التجربة لجسمك.", ob1_name: "الاسم الكامل", ob1_dob: "تاريخ الميلاد", ob1_gender: "الجنس", ob1_gender_sel: "اختر الجنس...", ob1_male: "ذكر", ob1_female: "أنثى", ob1_weight: "الوزن (كجم)", ob1_height: "الطول (سم)", ob_continue: "متابعة",
+        ob2_step: "الخطوة 2 من 2", ob2_title: "نمط الحياة والأهداف", ob2_subtitle: "ما هو مستوى نشاطك وماذا تريد أن تحقق؟", ob2_activity: "مستوى النشاط", act_1: "خامل", act_2: "نشط قليلاً", act_3: "نشط باعتدال", act_4: "نشط جداً", act_5: "نشط للغاية", ob2_goal: "الهدف الأساسي", goal_lose: "إنقاص الوزن", goal_lose_desc: "نقص السعرات الحرارية لفقدان الدهون بشكل مستدام.", goal_maintain: "الحفاظ على الوزن", goal_main_desc: "تناول طعام الصيانة للحفاظ على لياقتك.", goal_gain: "بناء العضلات", goal_gain_desc: "فائض طفيف لبناء كتلة عضلية خالية من الدهون.", btn_back: "رجوع", btn_calc: "حساب الملف الشخصي",
+        dash_target: "السعرات الحرارية اليومية", dash_goal_label: "الهدف", dash_ready: "جاهز للأكل؟", dash_ready_desc: "قم بتوليد خطة وجبات مخصصة بالذكاء الاصطناعي بناءً على احتياجاتك الدقيقة.", dash_cta: "اذهب لمولد الوجبات",
+        mp_title: "مولد الوجبات", mp_subtitle: "دع الذكاء الاصطناعي يصمم القائمة المثالية لأهدافك.", mp_pref: "التفضيلات الغذائية / المطبخ", mp_alg: "الحساسية / الأطعمة غير المفضلة", mp_dur: "مدة الخطة", mp_1day: "يوم واحد", mp_3day: "3 أيام", mp_btn: "توليد الخطة بالذكاء الاصطناعي",
+        groc_title: "قائمة البقالة", groc_subtitle: "مجمعة من جميع الأيام المولدة.", groc_print: "طباعة PDF", groc_empty: "قم بتوليد خطة وجبات أولاً لرؤية قائمة البقالة.",
+        msg_wait: "يرجى الانتظار...", msg_calc: "جاري الحساب...", msg_ai: "الذكاء الاصطناعي يعد قائمتك...", msg_regen: "إعادة توليد الخطة"
+      }
+    };
+
+    const state = { userId: null, profile: null, mealPlan: null, language: 'en' };
+
+    function changeLanguage(lang) {
+      state.language = lang;
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      
+      const elements = document.querySelectorAll('[data-i18n]');
+      elements.forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[lang][key]) {
+          el.innerText = translations[lang][key];
+        }
+      });
+      
+      if(state.profile) populateDashboard(); // Refresh dynamic text
+    }
+
+    // =============================================
+    // TOAST SYSTEM
+    // =============================================
+    function showToast(title, msg, type = 'success', duration = 4000) {
+      const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast toast-${type}`;
+      el.innerHTML = `
+        <div class="toast-icon">${icons[type] || '💬'}</div>
+        <div class="toast-body text-left">
+          <div class="toast-title">${title}</div>
+          ${msg ? `<div class="toast-msg">${msg}</div>` : ''}
+        </div>
+      `;
+      el.addEventListener('click', () => dismissToast(el));
+      container.appendChild(el);
+      setTimeout(() => dismissToast(el), duration);
+    }
+    function dismissToast(el) {
+      el.classList.add('removing');
+      el.addEventListener('animationend', () => el.remove());
+    }
+
+    // =============================================
+    // NAVIGATION
+    // =============================================
+    const NAV_VIEWS = ['dashboard', 'mealplan', 'grocery'];
+    function showView(viewId) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-' + viewId).classList.add('active');
+
+      const isMain = NAV_VIEWS.includes(viewId);
+      document.getElementById('desktop-nav').style.display = isMain ? 'flex' : 'none';
+      document.getElementById('mobile-tab-bar').style.display = isMain ? 'flex' : 'none';
+
+      document.querySelectorAll('#desktop-nav .nav-link').forEach(a => a.classList.remove('active-nav', 'text-brand-600', 'bg-brand-50'));
+      const deskBtn = document.getElementById('nav-' + viewId);
+      if (deskBtn) deskBtn.classList.add('active-nav', 'text-brand-600', 'bg-brand-50');
+
+      document.querySelectorAll('.mobile-tab').forEach(b => b.classList.remove('active-nav'));
+      const mobBtn = document.getElementById('mob-' + viewId);
+      if (mobBtn) mobBtn.classList.add('active-nav');
+
+      if (viewId === 'dashboard') populateDashboard();
+      if (viewId === 'grocery')   populateGrocery();
+    }
+
+    // =============================================
+    // AUTHENTICATION
+    // =============================================
+    async function handleAuth(action) {
+      const email    = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-password').value;
+      const btn      = document.getElementById(`btn-${action}`);
+
+      if (!email || !password) {
+        showToast('Error', 'Please enter your email and password.', 'error');
+        return;
+      }
+
+      const origLabel = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> ${translations[state.language].msg_wait}`;
+
+      try {
+        const res  = await fetch(`/api/${action}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Authentication failed');
+
+        state.userId = data.user_id;
+
+        if (action === 'login' && data.profile_completed) {
+          state.profile = data.profile;
+          showToast('Success', `Logged in successfully.`, 'success');
+          showView('dashboard');
+        } else {
+          showToast('Success', 'Account created! Let\'s setup your profile.', 'success');
+          showView('onboard-1');
+        }
+      } catch (err) {
+        showToast('Error', err.message, 'error');
+      } finally {
+        btn.disabled  = false;
+        btn.innerHTML = origLabel;
+      }
+    }
+
+    function logout() {
+      state.userId = null; state.profile = null; state.mealPlan = null;
+      document.getElementById('auth-email').value = '';
+      document.getElementById('auth-password').value = '';
+      showToast('Logged out', 'See you next time.', 'info');
+      showView('login');
+    }
+
+    // =============================================
+    // ONBOARDING
+    // =============================================
+    function nextOnboarding() {
+      const fields = ['ob-name', 'ob-dob', 'ob-weight', 'ob-height', 'ob-gender'];
+      if (fields.some(id => !document.getElementById(id).value.trim())) {
+        showToast('Error', 'Please complete all fields.', 'error'); return;
+      }
+      showView('onboard-2');
+    }
+
+    async function finishOnboarding() {
+      const btn = document.getElementById('btn-finish-ob');
+      const dob = new Date(document.getElementById('ob-dob').value);
+      
+      const profile = {
+        user_id:        state.userId,
+        name:           document.getElementById('ob-name').value,
+        dob:            document.getElementById('ob-dob').value,
+        age:            new Date().getFullYear() - dob.getFullYear(),
+        gender:         document.getElementById('ob-gender').value,
+        weight:         parseFloat(document.getElementById('ob-weight').value),
+        height:         parseFloat(document.getElementById('ob-height').value),
+        activity_level: document.getElementById('ob-activity').value,
+        goal:           document.querySelector('input[name="goal"]:checked').value
+      };
+
+      const origLabel = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> ${translations[state.language].msg_calc}`;
+
+      try {
+        const res  = await fetch('/api/calculate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profile)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error('Failed to save profile');
+
+        state.profile = data.profile;
+        showToast('Success', `Profile saved successfully.`, 'success');
+        showView('dashboard');
+      } catch (err) {
+        showToast('Error', err.message, 'error');
+      } finally {
+        btn.disabled  = false; btn.innerHTML = origLabel;
+      }
+    }
+
+    // =============================================
+    // DASHBOARD
+    // =============================================
+    function populateDashboard() {
+      if (!state.profile) return;
+      document.getElementById('dash-cals').textContent = state.profile.target_calories.toLocaleString();
+      document.getElementById('dash-bmr').textContent  = state.profile.bmr;
+      document.getElementById('dash-tdee').textContent = state.profile.tdee;
+
+      const goalMap = { lose_weight: 'goal_lose', maintain: 'goal_maintain', gain_muscle: 'goal_gain', gain_weight: 'goal_gain' };
+      document.getElementById('dash-goal').textContent = translations[state.language][goalMap[state.profile.goal]] || state.profile.goal;
+    }
+
+    // =============================================
+    // MEAL PLAN GENERATOR
+    // =============================================
+    async function generateMealPlan() {
+      const btn      = document.getElementById('btn-generate-mp');
+      const duration = parseInt(document.getElementById('mp-duration').value, 10);
+      const langNames = { en: "EN", fr: "FR", ar: "AR" };
+
+      btn.disabled  = true;
+      btn.innerHTML = `<span class="spinner"></span> ${translations[state.language].msg_ai}`;
+
+      try {
+        const res  = await fetch('/api/Mealplan', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id:          state.userId,
+            allergies:        document.getElementById('mp-allergies').value.trim() || 'None',
+            mealtype:         document.getElementById('mp-type').value.trim() || 'Standard',
+            target_calories:  state.profile.target_calories,
+            duration:         duration,
+            language:         langNames[state.language]
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Failed to generate');
+
+        state.mealPlan = data.meal_plan;
+        renderMeals();
+        showToast('Success', `Menu generated successfully.`, 'success');
+      } catch (err) {
+        showToast('Error', err.message, 'error');
+      } finally {
+        btn.disabled  = false;
+        btn.innerHTML = `✨ ${translations[state.language].msg_regen}`;
+      }
+    }
+
+    function badgeClass(type) {
+      const t = (type || '').toLowerCase();
+      // Look for english or common translated roots
+      if (t.includes('break') || t.includes('déj') || t.includes('إفطار')) return 'badge-breakfast';
+      if (t.includes('lunch') || t.includes('déj') || t.includes('غداء')) return 'badge-lunch';
+      if (t.includes('din')   || t.includes('عشاء')) return 'badge-dinner';
+      return 'badge-snack';
+    }
+
+    function renderMeals() {
+      const plan = state.mealPlan;
+      document.getElementById('meal-results').classList.remove('hidden');
+
+      const tabsEl   = document.getElementById('day-tabs');
+      const panelsEl = document.getElementById('day-panels');
+      tabsEl.innerHTML   = ''; panelsEl.innerHTML = '';
+
+      plan.days.forEach((day, idx) => {
+        // Tab button
+        const tab = document.createElement('button');
+        const dayLabel = state.language === 'ar' ? `يوم ${day.day_number}` : state.language === 'fr' ? `Jour ${day.day_number}` : `Day ${day.day_number}`;
+        tab.className    = `day-tab ${idx === 0 ? 'active' : ''}`;
+        tab.textContent  = dayLabel;
+        tab.dataset.day  = idx;
+        tab.addEventListener('click', () => switchDayTab(idx));
+        tabsEl.appendChild(tab);
+
+        // Panel
+        const panel = document.createElement('div');
+        panel.id        = `day-panel-${idx}`;
+        panel.className = idx === 0 ? '' : 'hidden';
+
+        let totalCals = day.meals.reduce((s, m) => s + (m.calories || 0), 0);
+        let mealsHtml = day.meals.map(meal => `
+          <div class="bg-white rounded-2xl shadow-card border border-slate-100 mb-4 overflow-hidden text-left" dir="${state.language === 'ar' ? 'rtl' : 'ltr'}">
+            <div class="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <span class="meal-type-badge ${badgeClass(meal.type)}">${meal.type}</span>
+                <div class="font-700 text-slate-800 text-sm mt-1.5">${meal.name}</div>
+                <div class="flex gap-3 mt-1 text-xs text-slate-400 font-500">
+                  <span>P: ${meal.protein}g</span>
+                  <span>C: ${meal.carbs}g</span>
+                  <span>F: ${meal.fat}g</span>
+                </div>
+              </div>
+              <div class="text-${state.language === 'ar' ? 'left' : 'right'}">
+                <span class="text-lg font-800 text-brand-600">${meal.calories}</span>
+                <div class="text-xs text-slate-400">kcal</div>
+              </div>
+            </div>
+            <ul class="px-5 py-3 space-y-1.5">
+              ${meal.ingredients.map(ing => `
+                <li class="flex items-center gap-2 text-sm text-slate-600">
+                  <span class="w-1.5 h-1.5 rounded-full bg-brand-400 flex-shrink-0"></span>
+                  <span><strong class="font-600 text-slate-800">${ing.quantity}${ing.unit}</strong> ${ing.name}</span>
+                </li>`).join('')}
+            </ul>
+          </div>
+        `).join('');
+
+        panel.innerHTML = `
+          <div class="flex items-center justify-between mb-3 flex-row-reverse-rtl">
+            <h3 class="font-700 text-slate-700 text-sm">${dayLabel} — ${day.meals.length} meals</h3>
+            <span class="text-brand-600 font-700 text-sm">${totalCals.toLocaleString()} kcal</span>
+          </div>
+          ${mealsHtml}
+        `;
+        panelsEl.appendChild(panel);
+      });
+    }
+
+    function switchDayTab(idx) {
+      document.querySelectorAll('.day-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+      document.querySelectorAll('[id^="day-panel-"]').forEach((p, i) => p.classList.toggle('hidden', i !== idx));
+    }
+
+    // =============================================
+    // GROCERY LIST
+    // =============================================
+    function populateGrocery() {
+      const container = document.getElementById('grocery-container');
+      if (!state.mealPlan || !state.mealPlan.days) {
+        container.innerHTML = `
+          <div class="text-center py-12 text-slate-400">
+            <span class="text-4xl block mb-3">🛒</span>
+            <p class="font-500" data-i18n="groc_empty">${translations[state.language].groc_empty}</p>
+          </div>`;
+        return;
+      }
+
+      const categories = {};
+      state.mealPlan.days.forEach(day => {
+        day.meals.forEach(meal => {
+          meal.ingredients.forEach(ing => {
+            const cat = ing.category || 'Other';
+            const key = `${ing.name.toLowerCase()}__${ing.unit}`;
+            if (!categories[cat]) categories[cat] = {};
+            if (!categories[cat][key]) categories[cat][key] = { name: ing.name, quantity: 0, unit: ing.unit };
+            categories[cat][key].quantity += (parseFloat(ing.quantity) || 0);
+          });
+        });
+      });
+
+      let html = `<div class="grocery-print-title" style="display:none;" dir="${state.language === 'ar' ? 'rtl' : 'ltr'}">🛒 NutriPlan Grocery List</div>`;
+      let globalIdx = 0;
+
+      for (const [cat, items] of Object.entries(categories)) {
+        const itemsHtml = Object.values(items).map(ing => {
+          const qty = Number.isInteger(ing.quantity) ? ing.quantity : parseFloat(ing.quantity.toFixed(1));
+          return `
+            <label class="flex items-center gap-3 py-2.5 border-b border-slate-50 cursor-pointer group flex-row-reverse-rtl">
+              <input type="checkbox" id="chk-${globalIdx++}"
+                class="w-5 h-5 rounded border-slate-300 accent-brand-500 cursor-pointer flex-shrink-0">
+              <span class="text-sm text-slate-700 group-has-[input:checked]:line-through group-has-[input:checked]:text-slate-400 transition-all">
+                <strong class="font-600">${qty}${ing.unit}</strong> ${ing.name}
+              </span>
+            </label>`;
+        }).join('');
+
+        html += `
+          <div class="grocery-category mb-6" dir="${state.language === 'ar' ? 'rtl' : 'ltr'}">
+            <div class="flex items-center gap-2 mb-2 flex-row-reverse-rtl">
+              <span class="text-xs font-700 text-brand-600 uppercase tracking-wider">${cat}</span>
+              <div class="flex-1 h-px bg-brand-100"></div>
+            </div>
+            ${itemsHtml}
+          </div>`;
+      }
+      container.innerHTML = html;
+    }
+
+    // Initialize English on load
+    changeLanguage('en');
+  </script>
+</body>
+</html>
